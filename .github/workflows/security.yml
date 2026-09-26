@@ -1,0 +1,22 @@
+name: security
+on:
+  push: { branches: [main] }
+  pull_request:
+  schedule: [{ cron: "0 6 * * 1" }]
+permissions: { contents: read }
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: npm }
+      - run: npm ci                       # versions figées par package-lock.json
+      - run: npm audit --audit-level=high # échoue si vulnérabilité haute/critique
+      - run: npm run lint
+      - run: npm test                     # logique de marge, chiffrement, validation, XSS, CSRF, OAuth, garde-fous de commande
+      - run: npm run build
+      - name: Secrets dans le dépôt
+        run: |
+          if git grep -nE "(sk-ant-|sbp_[a-f0-9]{20,}|eyJ[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]{20,}|SUPABASE_SERVICE_ROLE_KEY=.+|-----BEGIN (RSA |EC )?PRIVATE KEY)" -- . ':!package-lock.json' ':!.env.example' ':!*.md'; then
+            echo "Secret potentiel détecté"; exit 1; fi
